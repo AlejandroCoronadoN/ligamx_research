@@ -7,3 +7,5 @@ __pycache__
 .noseids
 *.xlsx
 *.xml
+aux.py 
+aiqutils

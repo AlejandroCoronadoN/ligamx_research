@@ -2,6 +2,9 @@ import pandas as pd
 import logging 
 import numpy as np
 import datetime 
+import pdb 
+from sklearn import linear_model
+from openpyxl import load_workbook
 
 def create_unique_enfrentamiento(df, team_list):
   """This function is used to create a unique enfrentamiento tag for 
@@ -54,3 +57,94 @@ def round_hours(df, col):
       df.loc[df[col]==block, col_round] = newblock
   
   return df
+
+def read_distance_file(path, sheet, r1, r2):
+  """Read the distance matrix in Asistencia BBVA. It selects only the 
+  cells inside the range [r1,r2]. Then we prepare the headers for this 
+  matrix a insert the index. The returning DataFram is a symetric matrix 
+  with each row and column indicating the name of the team.
+
+  Args:
+      path (string): Name of the  path
+      sheet (string): Excel Sheet name
+      r1 (string): Range 1 Ex: "B2"
+      r2 (string): Range 2 Ex: "AB100"
+
+  Returns:
+      [type]: 
+  """
+  wb = load_workbook(filename=path, read_only=True, data_only=True)
+  ws = wb[sheet]
+  # Read the cell values into a list of lists
+  data_rows = []
+  for row in ws[r1:r2]:
+      data_cols = []
+      for cell in row:
+          data_cols.append(cell.value)
+      data_rows.append(data_cols)
+
+  df = pd.DataFrame(data_rows)
+  df.columns = df.loc[0]
+  df = df.drop([0])
+  df = df.set_index(df[df.columns[0]])
+  del df[df.columns[0]]
+  df.index.name=None
+  return df
+
+
+#Replace missing information for numeric variables
+def missingnumeric_regression_autocomplete(df, targetvar):
+  """ Makes a regression for each missing value for the numeric columns
+  using fixed variables
+
+  Args:
+      df ([type]): [description]
+      targetvar (string): traget variable.
+  """
+  independent_variables = ['aforo', 'estadio_asistencia', 'goles_anotados']
+  categorical_variables = ['estadio', 'enfrentamiento', 'dia_semana', 'hora_bloque']
+  df['hora_bloque'] = df.hora_bloque
+  
+  X = df.copy()
+  missing_values =  X.loc[X[targetvar].isna(),]
+
+  regression_columns = [x for x in X.columns if (x in independent_variables or x in categorical_variables or  x == targetvar)]
+  X = X[regression_columns]
+
+  for catvar in categorical_variables:
+    if np.sum(missing_values[catvar].isna())==0:
+      logging.debug('missingnumeric_regression_autocomplete** pd.get_dummies: '+ catvar)
+      X = pd.concat([X, pd.get_dummies(X[catvar])], axis=1)
+
+    del X[catvar] 
+  missing_values =  X.loc[X[targetvar].isna(),]
+
+    
+  for var in independent_variables:
+    if np.sum(missing_values[var].isna())==0:
+      missing_values[var] = pd.to_numeric(missing_values[var])
+      X[var] = pd.to_numeric(X[var])
+    elif var == targetvar:
+      X=X[~ X[targetvar].isna()]
+    else: 
+      del X[var]
+      del missing_values[var]
+      independent_variables.remove(var)
+      
+  X = X.dropna()      
+  y = X[targetvar]
+  del X[targetvar]
+  reg = linear_model.LinearRegression().fit(X, y) 
+  results = reg.predict(missing_values[X.columns])
+  missing_values[targetvar] =  results
+  #Replace predicted values to the original dataset
+  df.loc[missing_values.index, targetvar] = results
+  return df
+  
+def fill_empty_distances(df, df_distance):
+  df_empty = df[df['distancia_equipos'].sina()]
+  for i in df_empty.index:
+    equipo_visitante= df.loc[i, 'equipo_visitante']
+    equipo_local = df.loc[i, 'equipo_local']
+    df_distance.loc[equipo_visitante, equipo_local]
+    

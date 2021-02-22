@@ -4,26 +4,9 @@ import numpy as np
 import datetime 
 import pdb 
 from sklearn import linear_model
-from utils import round_hours, create_unique_enfrentamiento 
+from utils import round_hours, create_unique_enfrentamiento, read_distance_file, missingnumeric_regression_autocomplete
 from openpyxl import load_workbook
-
 #%matplotlib 
-
-def read_distance_file(path, sheet, r1, r2):
-  wb = load_workbook(filename=path, read_only=True, data_only=True)
-  ws = wb[sheet]
-  # Read the cell values into a list of lists
-  data_rows = []
-  for row in ws[r1:r2]:
-      data_cols = []
-      for cell in row:
-          data_cols.append(cell.value)
-      data_rows.append(data_cols)
-
-  df = pd.DataFrame(data_rows)
-  df.columns = df.loc[0]
-  df = df.drop([0])
-  return df
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logging.disable(logging.ERROR)
@@ -150,58 +133,6 @@ df_matches["findesemana"] = df_matches.findesemana.map(map_findesemana)
 df_matches =  round_hours(df_matches, "hora_bloque")
 # TODO Icnomplete data use regression df =  round_hours(df_matches, "hora_partido")
 
-
-#Replace missing information for numeric variables
-def missingnumeric_regression_autocomplete(df, targetvar):
-  """ Makes a regression for each missing value for the numeric columns
-  using fixed variables
-
-  Args:
-      df ([type]): [description]
-      targetvar (string): traget variable.
-  """
-  independent_variables = ['aforo', 'estadio_asistencia', 'goles_anotados']
-  categorical_variables = ['estadio', 'enfrentamiento', 'dia_semana', 'hora_bloque']
-  df['hora_bloque'] = df.hora_bloque
-  
-  X = df.copy()
-  missing_values =  X.loc[X[targetvar].isna(),]
-
-  regression_columns = [x for x in X.columns if (x in independent_variables or x in categorical_variables or  x == targetvar)]
-  X = X[regression_columns]
-
-  for catvar in categorical_variables:
-    if np.sum(missing_values[catvar].isna())==0:
-      logging.debug('missingnumeric_regression_autocomplete** pd.get_dummies: '+ catvar)
-      X = pd.concat([X, pd.get_dummies(X[catvar])], axis=1)
-
-    del X[catvar] 
-  missing_values =  X.loc[X[targetvar].isna(),]
-
-    
-  for var in independent_variables:
-    if np.sum(missing_values[var].isna())==0:
-      missing_values[var] = pd.to_numeric(missing_values[var])
-      X[var] = pd.to_numeric(X[var])
-    elif var == targetvar:
-      X=X[~ X[targetvar].isna()]
-    else: 
-      del X[var]
-      del missing_values[var]
-      independent_variables.remove(var)
-      
-  X = X.dropna()      
-  y = X[targetvar]
-  del X[targetvar]
-  reg = linear_model.LinearRegression().fit(X, y) 
-  results = reg.predict(missing_values[X.columns])
-  missing_values[targetvar] =  results
-  #Replace predicted values to the original dataset
-  df.loc[missing_values.index, targetvar] = results
-  return df
-  
-
-
 df_matches.reset_index(inplace = True)
 del df_matches['index']
 
@@ -212,19 +143,14 @@ for col in df_matches.columns:
 #Replace empty values in estadio_asistencia
 df_matches['estadio_asistencia'] =pd.to_numeric(df_matches.estadio_asistencia, errors='coerce') #TODO Replace asistencia -> estadio_asistencia
 df_matches = missingnumeric_regression_autocomplete(df_matches, 'estadio_asistencia')
-df_matches = missingnumeric_regression_autocomplete(df_matches, 'aforo')
-df_matches = missingnumeric_regression_autocomplete(df_matches, 'estadio_asistencia')
+#df_matches = missingnumeric_regression_autocomplete(df_matches, 'aforo')
+#df_matches = missingnumeric_regression_autocomplete(df_matches, 'estadio_asistencia')
 #Recreate estadio_ocupacion_pct
 df_matches['estadio_ocupacion_pct'] =  df_matches.estadio_asistencia/ df_matches.aforo
 #Convert cuatro_grandes to boolean
-df_matches['cuatrorandes_local']= df_matches.cuatrograndes_local.apply(lambda x: True if x =='sí' else False)
+df_matches['cuatrograndes_local']= df_matches.cuatrograndes_local.apply(lambda x: True if x =='sí' else False)
+df_matches['cuatrograndes_visitante']= df_matches.cuatrograndes_visitante.apply(lambda x: True if x =='sí' else False)
 
 df_matches.to_csv('output/bbva_matches.csv') 
 
-def fill_empty_distances(df, df_distance):
-  df_empty = df[df['distancia_equipos'].sina()]
-  for i in df_empty.index:
-    equipo_visitante= df.loc[i, 'equipo_visitante']
-    equipo_local = df.loc[i, 'equipo_local']
-    df_distance.loc[equipo_visitante, equipo_local]
-df_matches.distancia_equipos
+
