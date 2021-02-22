@@ -1,4 +1,9 @@
 
 *.xls
 *.csv
-
+.vscode
+ligamx
+__pycache__
+.noseids
+*.xlsx
+*.xml

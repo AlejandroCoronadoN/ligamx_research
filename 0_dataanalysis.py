@@ -1,13 +1,35 @@
 import pandas as pd
 import logging 
-import numpy as np 
+import numpy as np
+import datetime 
+import pdb 
+from sklearn import linear_model
+from utils import round_hours, create_unique_enfrentamiento 
+from openpyxl import load_workbook
+
 #%matplotlib 
+
+def read_distance_file(path, sheet, r1, r2):
+  wb = load_workbook(filename=path, read_only=True, data_only=True)
+  ws = wb[sheet]
+  # Read the cell values into a list of lists
+  data_rows = []
+  for row in ws[r1:r2]:
+      data_cols = []
+      for cell in row:
+          data_cols.append(cell.value)
+      data_rows.append(data_cols)
+
+  df = pd.DataFrame(data_rows)
+  df.columns = df.loc[0]
+  df = df.drop([0])
+  return df
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logging.disable(logging.ERROR)
 logging.debug('start program')
 
-path = "Asistencia BBVA V2.xls"
+path = "Asistencia BBVA V2.xlsx"
 excel = pd.read_excel(path)
 xls = pd.ExcelFile(path)
 sheets = xls.sheet_names
@@ -24,11 +46,11 @@ for sheet in sheets:
     df_matches = df_matches.append(df_sheet)
     logging.info('Match File procesed...'+ sheet)
   elif "Distancia" in sheet:
-    df_distance = df_sheet
+    df_distance = read_distance_file( path, sheet, 'D3', 'AB27')
     logging.info('Distance File procesed...' +sheet)
 
   else:
-    logging.error('sheet not recognized...', sheet)
+    logging.error('sheet not recognized...' +sheet)
 
 
 
@@ -47,24 +69,27 @@ rename_columns = {'TORNEO':'torneo', #? 16 unique torneos
 #TODO: Pregunta: Why do we only have one value
 'NO PARTIDO':'partido_num', #? Two entries per partido_num (one for visitors and one for locals) 2403 total matches
 'DÍA':'dia', #? Day of the week from monday to Sunday
-#TODO: DELETE
+#* TODO DELETE
 'ENFRENTAMIENTO':'enfrentamiento', #? 557 unique values each team has played 4.314(x2) times with each other team on average.
-#TODO: Repeat this column using local and visitors columns to avoid typos
-#TODO: Plot of distribution of matches, which matches repeat the most
+#* TODO Repeat this column using local and visitors columns to avoid typos
+#TODO Plot of distribution of matches, which matches repeat the most
+#* TODO Complete test for create_unique_enfrentamiento
 'FECHA':'fecha',
-#TODO: Convert to date format
+#* TODO Convert to date format
 'Día de la semana':'dia_semana',
-##TODO: delete acentos
+#* TODO delete acentos
 '¿Es fín de semana?':'findesemana',
-#TODO: make boolean
+#* TODO make boolean
 'HORA POR BLOQUE':'hora_bloque', #? tehre are 17 unique values, matches start at 12pm until 23pm. There are 22 values taht start at fraction hours
-#TODO: should we delete the 22 extra values or are these special values that indicate special matches?
+#TODO should we delete the 22 extra values or are these special values that indicate special matches?
+#* TODO Fucntion round_hours implemented
 'HORA DEL PARTIDO':'hora_partido', #? 55 unique values, 54 missing values. Most matches start at XX:00 XX:30 and XX:45 hours
-#TODO: We could move the atypical starting hours to XX:00 XX:30 and XX:45  and create a boolan for starting_special for special cases
+#TODO PREGUNTA: We could move the atypical starting hours to XX:00 XX:30 and XX:45  and create a boolan for starting_special for special cases
+#* TODO Fucntion round_hours implemented
 'LOCAL':'equipo_local', #? 29 total teams, names matches in both equipo_local, equipo_visitante
 'VISITANTE':'equipo_visitante', 
 'ESTADIO':'estadio', #? 35 different stadiums.
-#TODO: Some values look repeated, in particular  
+#TODO Some values look repeated, in particular  
 #TODO'Universitario', 'Universitario BUAP' -  
 #TODO'OLIMPICO BENITO JUAREZ' 'Olímpico Benito Juárez' 'Olímpico Universitario', -  
 #TODO 'La Corregidora' 'La Corregidora / UNAM' -  
@@ -72,22 +97,23 @@ rename_columns = {'TORNEO':'torneo', #? 16 unique torneos
 #TODO 'Estadio BBVA', 'Estadio BBVA Bancomer', -
 #TODO 'Estadio AKRON','Estadio AKRON - Omnilife / Chivas',
 #TODO 'Cuauhtémoc', 'Cuauhtémoc / Jaguares',
-#TODO  'Azteca' 'Azteca / Cruz Azul',
-#TODO: Pregunta: Why some names have a slash symbol on the name, what does the slash stands for...
+#TODO 'Azteca' 'Azteca / Cruz Azul',
+#TODO  Pregunta: Why some names have a slash symbol on the name, what does the slash stands for...
 'AFORO':'aforo', #? Mean: 38,792 Max: 100,248 Min:12,000
-'ASISTENCIA':'asistencia',
-#TODO: Replace some strings in the file to create a numeric columsn [" "]
+'ASISTENCIA':'estadio_asistencia',
+#* TODO  Replace some strings in the file to create a numeric columsn [" "]
 'Goles anotados':'goles_anotados', #? mean: 2.63 
 '%DE OCUPACIÓN':'estadio_ocupacion_pct', #? mean: 65% std: 24%  (40-80%)
-#TODO: Delete na
-'PARTIDO ASISTENCIA':'estadio_asistencia', #? string ocupacion we can delete this feature
+#* TODO Delete na recreated entire column using aforo/estadio_ocupacion
+'PARTIDO ASISTENCIA':'partido_asistencia', #? string ocupacion we can delete this feature
 '¿El Local pertenece a los 4 Grandes?':'cuatrograndes_local', #? 4 grandes == 'América', 'Universidad Nacional', 'Guadalajara', 'Cruz Azul'
-#TODO: Convert to boolena df_matches.cuatrograndes_local.apply(lambda x: True if x =='sí' else False)
+#* TODO Convert to boolena df_matches.cuatrograndes_local.apply(lambda x: True if x =='sí' else False)
 'ENF':'enf',
-#TODO: Delete column
+# * TODO Delete column
 '¿El Visitante pertenece a los 4 Grandes?':'cuatrograndes_visitante',
+#* TODO Convert to boolean 
 'Distancia entre el Equipo Visitante y el Equipo Local':'distancia_equipos', #? There are three blocks 0-1000 1000-3000 3000+
-#TODO: We still need to fill some empty values for 27 rows
+#TODO We still need to fill some empty values for 27 rows
 'Tipo de Clasico':'tipo_clasico'}  
 #?  clasico types = {'Clásico Nacional':'América vs Guadalajara',
 #? 'Clásico del Centro':'Club Atlético de San Luis vs Gallos Blancos de Querétaro',
@@ -95,6 +121,110 @@ rename_columns = {'TORNEO':'torneo', #? 16 unique torneos
 #? 'Clásico Tapatío':'Guadalajara vs Atlas', 
 #?'Clásico Regio': 'Rayados de Monterrey vs Tigres de la U.A.N.L.']
 
-
 df_matches = df_matches.rename(columns=rename_columns)
+
+delete_columns = ['partido_asistencia', 'enf']
+for col in delete_columns:
+  del df_matches[col]
+
+team_list= df_matches.equipo_local.unique() 
+df_matches = create_unique_enfrentamiento(df_matches, team_list)
+#convert to date format
+df_matches['fecha'] = pd.to_datetime(df_matches.fecha)
+#conver dia_semana
+map_dia_semana = {'Fri': 'viernes', 
+                  'Sat':'sabado', 
+                  'Sun':'domingo', 
+                  'Tue':'martes', 
+                  'Wed':'miercoles',
+                  'Thu':'jueves', 
+                  'Mon':'lunes'}
+df_matches['dia_semana'] = df_matches.dia_semana.map(map_dia_semana)
+
+#findesemana covert to boolean
+map_findesemana = {'sí':True, 'no':False}
+df_matches["findesemana"] = df_matches.findesemana.map(map_findesemana)
+
+
+#Create round variables to create fewer variables in time block variables
+df_matches =  round_hours(df_matches, "hora_bloque")
+# TODO Icnomplete data use regression df =  round_hours(df_matches, "hora_partido")
+
+
+#Replace missing information for numeric variables
+def missingnumeric_regression_autocomplete(df, targetvar):
+  """ Makes a regression for each missing value for the numeric columns
+  using fixed variables
+
+  Args:
+      df ([type]): [description]
+      targetvar (string): traget variable.
+  """
+  independent_variables = ['aforo', 'estadio_asistencia', 'goles_anotados']
+  categorical_variables = ['estadio', 'enfrentamiento', 'dia_semana', 'hora_bloque']
+  df['hora_bloque'] = df.hora_bloque
+  
+  X = df.copy()
+  missing_values =  X.loc[X[targetvar].isna(),]
+
+  regression_columns = [x for x in X.columns if (x in independent_variables or x in categorical_variables or  x == targetvar)]
+  X = X[regression_columns]
+
+  for catvar in categorical_variables:
+    if np.sum(missing_values[catvar].isna())==0:
+      logging.debug('missingnumeric_regression_autocomplete** pd.get_dummies: '+ catvar)
+      X = pd.concat([X, pd.get_dummies(X[catvar])], axis=1)
+
+    del X[catvar] 
+  missing_values =  X.loc[X[targetvar].isna(),]
+
+    
+  for var in independent_variables:
+    if np.sum(missing_values[var].isna())==0:
+      missing_values[var] = pd.to_numeric(missing_values[var])
+      X[var] = pd.to_numeric(X[var])
+    elif var == targetvar:
+      X=X[~ X[targetvar].isna()]
+    else: 
+      del X[var]
+      del missing_values[var]
+      independent_variables.remove(var)
       
+  X = X.dropna()      
+  y = X[targetvar]
+  del X[targetvar]
+  reg = linear_model.LinearRegression().fit(X, y) 
+  results = reg.predict(missing_values[X.columns])
+  missing_values[targetvar] =  results
+  #Replace predicted values to the original dataset
+  df.loc[missing_values.index, targetvar] = results
+  return df
+  
+
+
+df_matches.reset_index(inplace = True)
+del df_matches['index']
+
+for col in df_matches.columns:
+  if np.sum(df_matches[col].isna()) >0:
+    print(col)
+
+#Replace empty values in estadio_asistencia
+df_matches['estadio_asistencia'] =pd.to_numeric(df_matches.estadio_asistencia, errors='coerce') #TODO Replace asistencia -> estadio_asistencia
+df_matches = missingnumeric_regression_autocomplete(df_matches, 'estadio_asistencia')
+df_matches = missingnumeric_regression_autocomplete(df_matches, 'aforo')
+df_matches = missingnumeric_regression_autocomplete(df_matches, 'estadio_asistencia')
+#Recreate estadio_ocupacion_pct
+df_matches['estadio_ocupacion_pct'] =  df_matches.estadio_asistencia/ df_matches.aforo
+#Convert cuatro_grandes to boolean
+df_matches['cuatrorandes_local']= df_matches.cuatrograndes_local.apply(lambda x: True if x =='sí' else False)
+
+df_matches.to_csv('output/bbva_matches.csv') 
+
+def fill_empty_distances(df, df_distance):
+  df_empty = df[df['distancia_equipos'].sina()]
+  for i in df_empty.index:
+    equipo_visitante= df.loc[i, 'equipo_visitante']
+    equipo_local = df.loc[i, 'equipo_local']
+    df_distance.loc[equipo_visitante, equipo_local]
+df_matches.distancia_equipos
