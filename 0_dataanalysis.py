@@ -5,7 +5,7 @@ import datetime
 import pdb 
 from sklearn import linear_model
 from utils import round_hours, create_unique_enfrentamiento, read_distance_file, missingnumeric_regression_autocomplete
-from openpyxl import load_workbook
+#from openpyxl import load_workbook
 #%matplotlib 
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -45,17 +45,17 @@ for col in df_matches.columns:
 rename_columns = {'TORNEO':'torneo', #? 16 unique torneos
 'TORNEO NO':'torneo_num', #? 16 torneos in ascending order from 1 tyo 16
 'JORNADA':'jornada', #? 19 jornadas in ascending orrder from JORNADA 1 to JORNADA 18
-#TODO: Pregunta: Why there are more jornadas than torneos
+#* TODO Pregunta: Why there are more jornadas than torneos
 'TIPO JORNADA':'jornada_tipo', #? Two unique values: FIN DE SEMANA, DOBLE
-#TODO: Pregunta: What is DOBLE? Two teams playing at teh same time?
+#* TODO Pregunta: What is DOBLE? Two teams playing at teh same time? Special Reeschedules, two teams have to play at the same time same day
 'FASE':'fase', #? Only one value 
-#TODO: Pregunta: Why do we only have one value
+#* TODO Pregunta: Why do we only have one value
 'NO PARTIDO':'partido_num', #? Two entries per partido_num (one for visitors and one for locals) 2403 total matches
 'DÍA':'dia', #? Day of the week from monday to Sunday
 #* TODO DELETE
 'ENFRENTAMIENTO':'enfrentamiento', #? 557 unique values each team has played 4.314(x2) times with each other team on average.
 #* TODO Repeat this column using local and visitors columns to avoid typos
-#TODO Plot of distribution of matches, which matches repeat the most
+#* TODO Plot of distribution of matches, which matches repeat the most
 #* TODO Complete test for create_unique_enfrentamiento
 'FECHA':'fecha',
 #* TODO Convert to date format
@@ -64,10 +64,10 @@ rename_columns = {'TORNEO':'torneo', #? 16 unique torneos
 '¿Es fín de semana?':'findesemana',
 #* TODO make boolean
 'HORA POR BLOQUE':'hora_bloque', #? tehre are 17 unique values, matches start at 12pm until 23pm. There are 22 values taht start at fraction hours
-#TODO should we delete the 22 extra values or are these special values that indicate special matches?
+#* TODO should we delete the 22 extra values or are these special values that indicate special matches?
 #* TODO Fucntion round_hours implemented
 'HORA DEL PARTIDO':'hora_partido', #? 55 unique values, 54 missing values. Most matches start at XX:00 XX:30 and XX:45 hours
-#TODO PREGUNTA: We could move the atypical starting hours to XX:00 XX:30 and XX:45  and create a boolan for starting_special for special cases
+#* TODO PREGUNTA: We could move the atypical starting hours to XX:00 XX:30 and XX:45  and create a boolan for starting_special for special cases
 #* TODO Fucntion round_hours implemented
 'LOCAL':'equipo_local', #? 29 total teams, names matches in both equipo_local, equipo_visitante
 'VISITANTE':'equipo_visitante', 
@@ -106,7 +106,7 @@ rename_columns = {'TORNEO':'torneo', #? 16 unique torneos
 
 df_matches = df_matches.rename(columns=rename_columns)
 
-delete_columns = ['partido_asistencia', 'enf']
+delete_columns = ['partido_asistencia', 'enf', 'dia']
 for col in delete_columns:
   del df_matches[col]
 
@@ -150,7 +150,31 @@ df_matches['estadio_ocupacion_pct'] =  df_matches.estadio_asistencia/ df_matches
 #Convert cuatro_grandes to boolean
 df_matches['cuatrograndes_local']= df_matches.cuatrograndes_local.apply(lambda x: True if x =='sí' else False)
 df_matches['cuatrograndes_visitante']= df_matches.cuatrograndes_visitante.apply(lambda x: True if x =='sí' else False)
+df_matches.loc[df_matches.tipo_clasico.isna(), 'tipo_clasico'] = 'No Clásico'
 
-df_matches.to_csv('output/bbva_matches.csv') 
+map_estadios = {'OLIMPICO BENITO JUAREZ': 'Olímpico Benito Juárez' 
+'Olímpico Universitario',
+'La Corregidora / UNAM': 'La Corregidora',
+'Jalisco / U de G': 'Jalisco',  
+'Estadio BBVA Bancomer': 'Estadio BBVA',
+'Estadio AKRON - Omnilife / Chivas': 'Estadio AKRON',
+'Cuauhtémoc / Jaguares': 'Cuauhtémoc',
+'Azteca / Cruz Azul':'Azteca' }
 
+
+map_equipos = {'Gallos Blancos de Queretaro':'Gallos Blancos de Querétaro',
+'America' :'América',
+'Leon':'León',
+'Club Atletico de San Luis':'Club Atlético de San Luis',
+'FC Juarez':'FC Juárez'}
+
+df_matches['estadio'] =  df_matches.estadio.replace(map_estadios)
+df_matches['equipo_local'] =  df_matches.equipo_local.replace(map_equipos)
+df_matches['equipo_visitante'] =  df_matches.equipo_visitante.replace(map_equipos)
+
+df_matches['month'] = df_matches.fecha.apply(lambda x: x.month)
+df_matches['year'] = df_matches.fecha.apply(lambda x: x.year)
+df_matches['day'] = 1
+df_matches['date_year_month'] = pd.to_datetime(df_matches[['year', 'month', 'day']])
+df_matches.to_csv('output/bbva_matches.csv', index =False) 
 

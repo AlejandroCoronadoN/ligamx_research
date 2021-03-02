@@ -9,3 +9,5 @@ __pycache__
 *.xml
 aux.py 
 aiqutils
+output
+test_files
