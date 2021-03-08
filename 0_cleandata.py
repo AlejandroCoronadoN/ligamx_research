@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %
 logging.disable(logging.ERROR)
 logging.debug('start program')
 
-path = "Asistencia BBVA V2.xlsx"
+path = "input/Asistencia BBVA V2.xlsx"
 excel = pd.read_excel(path)
 xls = pd.ExcelFile(path)
 sheets = xls.sheet_names
@@ -23,8 +23,8 @@ df_distance = pd.DataFrame()
 
 for sheet in sheets:
   df_sheet = pd.read_excel(path, sheet_name=sheet)
-  df_sheet['sheetname'] = sheet
-
+  #df_sheet['sheetname'] = sheet #<- Needed to due to duplicates
+  
   if "BBVA" in sheet:
     df_matches = df_matches.append(df_sheet)
     logging.info('Match File procesed...'+ sheet)
@@ -148,9 +148,20 @@ df_matches = missingnumeric_regression_autocomplete(df_matches, 'estadio_asisten
 #Recreate estadio_ocupacion_pct
 df_matches['estadio_ocupacion_pct'] =  df_matches.estadio_asistencia/ df_matches.aforo
 #Convert cuatro_grandes to boolean
-df_matches['cuatrograndes_local']= df_matches.cuatrograndes_local.apply(lambda x: True if x =='sí' else False)
-df_matches['cuatrograndes_visitante']= df_matches.cuatrograndes_visitante.apply(lambda x: True if x =='sí' else False)
-df_matches.loc[df_matches.tipo_clasico.isna(), 'tipo_clasico'] = 'No Clásico'
+cuatrograndes = ['América', 'Universidad Nacional', 'Guadalajara', 'Cruz Azul']
+df_matches['cuatrograndes_local']= df_matches.equipo_local.apply(lambda x: True if  x in cuatrograndes else False)
+df_matches['cuatrograndes_visitante']=  df_matches.equipo_visitante.apply(lambda x: True if  x in cuatrograndes else False)
+#Use fixed values from enfrentamientos to find clasicos
+clasico_map = {'América VS Cruz Azul': 'Clásico Joven' ,
+  'Guadalajara VS América': 'Clásico Nacional' ,
+  'Club Atlético de San Luis VS Gallos Blancos de Querétaro': 'Clásico del  Centro',
+  'Universidad Nacional VS América' : 'Clásico Capitalino' ,
+  'Guadalajara VS Atlas': 'Clásico Tapatío' ,
+  'Tigres de la U.A.N.L. VS Rayados de Monterrey': 'Clásico Regio' }
+
+df_matches.tipo_clasico.apply(lambda x: 'No clásico' if x not in clasico_map.keys() else '')
+df_matches['tipo_clasico'] =  df_matches['enfrentamiento'].map(clasico_map)
+
 
 map_estadios = {'OLIMPICO BENITO JUAREZ': 'Olímpico Benito Juárez' 
 'Olímpico Universitario',
@@ -172,9 +183,18 @@ df_matches['estadio'] =  df_matches.estadio.replace(map_estadios)
 df_matches['equipo_local'] =  df_matches.equipo_local.replace(map_equipos)
 df_matches['equipo_visitante'] =  df_matches.equipo_visitante.replace(map_equipos)
 
+distance_columns = ['equipo_local', 'equipo_visitante', 'distancia_equipos']
+df_distances = df_matches[distance_columns].groupby(distance_columns).first().reset_index()
+del df_matches['distancia_equipos']
+df_matches =df_matches.merge(df_distances, on = ['equipo_local', 'equipo_visitante'], how='left')
+
 df_matches['month'] = df_matches.fecha.apply(lambda x: x.month)
 df_matches['year'] = df_matches.fecha.apply(lambda x: x.year)
 df_matches['day'] = 1
 df_matches['date_year_month'] = pd.to_datetime(df_matches[['year', 'month', 'day']])
+
+#Drop duplicates most duplicates are created because different sheets contain same information
+df_matches = df_matches.drop_duplicates()
 df_matches.to_csv('output/bbva_matches.csv', index =False) 
+
 

@@ -3,6 +3,10 @@ import numpy as np
 from  aiqutils.data_preparation import interact_categorical_numerical
 import importlib
 
+# In this script we transform the dataframe to change the reporting level
+# changing each row to report a game played by a particular team instead
+# of reporting the results of each match (that involves two teams)
+
 df = pd.read_csv('output/bbva_matches.csv')
 df =  df.drop_duplicates()
 df['fecha'] = pd.to_datetime(df.fecha)
