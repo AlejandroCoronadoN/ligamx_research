@@ -8,7 +8,7 @@ def similar(a, b):
 
 df_resultados = pd.read_csv('input/resultados_partidos.csv')
 map_columns = { 'Season':'temporada', 
- 'Date':'fecha', 
+ 'Date':'fecha_uk', 
  'Time':'hora', 
  'Home':'equipo_local', 
  'Away':'equipo_visitante', 
@@ -19,13 +19,13 @@ map_columns = { 'Season':'temporada',
 df_resultados = df_resultados[map_columns.keys()]
 df_resultados = df_resultados.rename(columns=map_columns)
 print(df_resultados.head())
-df_resultados['fecha_hora'] = pd.to_datetime(df_resultados['fecha']+ ' ' +df_resultados['hora'])
-df_resultados['fecha_hora_mexico'] = df_resultados['fecha_hora'].dt.tz_localize('UTC').dt.tz_convert('America/Mexico_City')
+df_resultados['fecha_hora_uk'] = pd.to_datetime(df_resultados['fecha_uk']+ ' ' +df_resultados['hora'])
+df_resultados['fecha_hora_mexico'] = df_resultados['fecha_hora_uk'].dt.tz_localize('UTC').dt.tz_convert('America/Mexico_City')
 
 
 df_resultados['fecha_mexico'] =  pd.to_datetime(df_resultados['fecha_hora_mexico'].apply(lambda x: x.date())) 
 
-df_resultados['fecha'] = pd.to_datetime(df_resultados.fecha)
+df_resultados['fecha_uk'] = pd.to_datetime(df_resultados.fecha_uk)
 
 
 df_ocupacion = pd.read_csv('output/bbva_matches.csv')
@@ -64,12 +64,18 @@ def compare_teams(df_resultados, df_ocupacion):
       if similar(club_ocupacion, club_result) > .5:
         print("Similar names: {} {} ".format(club_ocupacion, club_result)) 
 
-
+#TODO Create function that iterates trough the number of hours in df_resultados.fecha_hora to complete all the missing joins
+#! Open test_left and test_right in excel to detect differences.
 test = df_resultados.merge(df_ocupacion, on = ['fecha_mexico', 'equipo_local', 'equipo_visitante'], how='outer', indicator=True)
 
-test_right = test[test._merge == 'right_only']
+ocupacion_right = test[test._merge == 'right_only'][df_ocupacion.columns]
+df_resultados = ocupacion_right
+df_resultados
+test2 = df_resultados.merge(ocupacion_right, on = ['fecha_mexico', 'equipo_local', 'equipo_visitante'], how='outer', indicator=True)
 
-rightonly_index = test_right[['fecha_mexico', 'equipo_local', 'equipo_visitante']]
+
+rightonly_index = ocupacion_right[['fecha_mexico', 'equipo_local', 'equipo_visitante']]
+
 
 test_left = test[test._merge == 'left_only']
 test_both = test[test._merge == 'both']
